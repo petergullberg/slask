@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<title>MONDIAN</title>
+		<style>
+		.button {
+		  background-color: #4CAF50;
+		  border: none;
+		  color: white;
+		  padding: 15px 32px;
+		  text-align: center;
+		  text-decoration: none;
+		  display: inline-block;
+		  font-size: 16px;
+		  margin: 4px 2px;
+		  cursor: pointer;
+		}
+		</style>
+	</head>
+
+<body>
+<!-- MONDIAN 
+	 
+  -->
+
+<h1>MONDIAN </h1>
+<p>A simple demo </p>
+
+AuthKey (Change this accordingly:):
+
+<!-- AuthKey is default to DEMO machine, change accordingly -->
+<input type="text" id="authKey" value="">
+<BR><BR>
+	<button class="button" onclick="ConnectButton()">Connect</button>
+	<button class="button" onclick="SendCommand()">SendCommand</button>
+	<button class="button" onclick="GetCommand()">GetCommand</button>
+
+
+<BR><BR>
+<textarea id="status" rows="1" cols="70" enabled></textarea>
+<BR><BR>
+
+<textarea id="log" rows="15" cols="70" disabled></textarea><BR>
+<button class="button" onclick="ClearButton()">Clear!</button> <BR>
+<button class="button" onclick="onReload()">Reload page</button> <BR>
+
+<script>
+// GLOBALS
+var device;
+var server;
+var cmd_service;
+var characteristics;
+
+var RemoteCharacteristicAuth;
+var RemoteCharacteristicCommand;
+var RemoteCharacteristicStatus;
+var RemoteCharacteristicResponseStatus;
+
+var deviceServiceUUID  = "db0f73c4-8475-2df1-b741-7d0bd25e8ca5";
+
+
+
+//const cmd_ServiceUUID    = "06aa1920-f22a-11e3-9daa-0002a5d5c51b";
+//const cmd_CmdCharUUID       = "06aa3a42-f22a-11e3-9daa-0002a5d5c51b";
+//const cmd_CmdStatusCharUUID = "06aa3a12-f22a-11e3-9daa-0002a5d5c51b";
+//const cmd_RespStatusCharUUID = "06aa3a52-f22a-11e3-9daa-0002a5d5c51b";
+
+//const cmd_ServiceUUID    = "1cdd44b4-79c8-418a-b636-c4c7a5a9bd87";
+//const cmd_CmdCharUUID    = "89547e1f-91c4-4f87-9ad9-4f98f10ca6c9";
+
+const cmd_ServiceUUID    = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+
+const cmd_CmdCharUUID    = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+const cmd_CmdCharUUID2    = "1cdd44b4-79c8-418a-b636-c4c7a5a9bd87";
+
+
+// This variable holds the Authentication Block
+//var nespressoDeviceAuth  = new Uint8Array(8);
+
+////////////////////////////////////////
+// CODE SECTION
+////////////////////////////////////////
+
+
+function parse_url(){
+	var urlParams = new URLSearchParams(window.location.search);
+//	log_line(urlParams);
+	var value = urlParams.get('authKey');
+	log_line(value);
+	if (null == value) {
+		log_line("Setting default");
+		value = "1234567812345678";
+	}
+	document.querySelector('#authKey').value = value;
+}
+parse_url();
+var log_element = document.getElementById('log');
+
+function log_line(str){
+	log.value += str + "\n";
+	log.scrollTop = log.scrollHeight;
+}
+function log_clear() {
+	log.value = "";
+	log.scrollTop = log.scrollHeight;
+}
+
+function status_line(str){
+  document.getElementById("status").innerHTML = str;
+}
+
+function status_clear() {
+	document.getElementById("status").innerHTML = "";
+}
+
+function handleStatusNotification(event) {
+  let view = event.target.value;
+  
+  const decoder = new TextDecoder('utf-8');
+  log_line("Notifiations");
+  log_line(decoder.decode(view));
+}
+
+
+function ClearButton() {
+  log_clear();
+  status_clear();
+}
+
+
+myCommand = new Uint8Array('P','E','T','E','R',0);
+async function SendCommand() {
+
+	try {
+		log_line("===================");
+		log_line("Sending Command");
+
+		await RemoteCharacteristicCommand.writeValue( myCommand );
+
+//		resp = await RemoteCharacteristicCommand.readValue();	
+//		log_line("Response:");
+//		log_line(resp);
+
+	} catch(error) {
+		log_line('Argh! ' + error);
+	}
+}
+/**
+ * Convert an Uint8Array into a string.
+ *
+ * @returns {String}
+ */
+function Decodeuint8arr(uint8array){
+    return new TextDecoder("utf-8").decode(uint8array);
+}
+
+async function GetCommand() {
+	try {
+
+		resp = await RemoteCharacteristicCommand.readValue();
+		
+		log_line("Response:");
+
+//.then(characteristic => characteristic.getDescriptor('gatt.characteristic_user_description'))
+//.then(descriptor => descriptor.readValue())
+//.then(value => {
+	  const decoder = new TextDecoder('utf-8');
+	  console.log(`User Description: ${decoder.decode(resp)}`);
+
+		
+		
+		
+		
+		log_line(Decodeuint8arr(resp));
+
+	} catch(error) {
+		log_line('Argh! ' + error);
+	}
+
+}
+
+function hex2a(hexx) {
+    var hex = hexx.toString();//force conversion
+    var str = '';
+    for (var i = 0; i < hex.length; i += 2)
+        str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+    return str;
+}
+
+// Hardcoded to 8 bytes (16 char)
+function SetAuthKey(str) {
+	if ( str.length != 16 ) {
+		log_line("AuthKey Error\n");
+		return;
+	}
+	tmp = "AuthKey :";
+	for (var i = 0; i < 8; i++ ) {
+		nespressoDeviceAuth[i] = parseInt(str.substr(i*2, 2), 16);
+		tmp = tmp  + " " + nespressoDeviceAuth[i].toString(16);
+	}
+	log_line(tmp);
+//	return buffer;
+}
+
+function onDisconnected(event) {
+  document.getElementById("log").innerHTML = "";
+  status_line("Disconnected");
+}
+
+function DisplayCharInfo(characteristics) {
+
+    log_line('> Characteristic UUID:  ' + characteristic.uuid);
+    log_line('> Broadcast:            ' + characteristic.properties.broadcast);
+    log_line('> Read:                 ' + characteristic.properties.read);
+    log_line('> Write w/o response:   ' +
+      characteristic.properties.writeWithoutResponse);
+    log_line('> Write:                ' + characteristic.properties.write);
+    log_line('> Write:                ' + characteristic.properties.write);
+    log_line('> Notify:               ' + characteristic.properties.notify);
+    log_line('> Indicate:             ' + characteristic.properties.indicate);
+    log_line('> Signed Write:         ' +
+      characteristic.properties.authenticatedSignedWrites);
+    log_line('> Queued Write:         ' + characteristic.properties.reliableWrite);
+    log_line('> Writable Auxiliaries: ' +
+      characteristic.properties.writableAuxiliaries);
+}
+function onReload() {
+	location.reload();
+	log_line("Not very much in this function");
+}
+
+async function ConnectButton() {
+
+	// Clear log
+	log_clear();
+	log_line(deviceServiceUUID);
+	log_line(cmd_ServiceUUID);
+	
+	//SetAuthKey( document.querySelector('#authKey').value );
+
+	if (deviceServiceUUID.startsWith('0x')) {
+		deviceServiceUUID = parseInt(deviceServiceUUID);
+	}
+	if (cmd_ServiceUUID.startsWith('0x')) {
+		cmd_ServiceUUID = parseInt(cmd_ServiceUUID);
+	}
+	
+  //if (auth_CharUUID.startsWith('0x')) {
+  //  auth_CharUUID = parseInt(auth_CharUUID);
+  //}
+
+
+  try {
+    log_line('Requesting Bluetooth Device...');
+    device = await navigator.bluetooth.requestDevice({
+		"filters":[{"services":["4fafc201-1fb5-459e-8fcc-c5c9c331914b"]}]
+	
+	});
+//* 
+// acceptAllDevices:true
+//		acceptAllDevices:true,
+//		optionalServices:[cmd_ServiceUUID]
+//
+//		filters: [
+//			{services: [cmd_ServiceUUID]}
+//		{services: [deviceServiceUUID]},
+//		]
+//     oprionalServices: [cmd_ServiceUUID]
+//*/
+
+    log_line('Connecting to GATT Server...');
+	device.addEventListener('gattserverdisconnected', onDisconnected);
+
+    server = await device.gatt.connect();
+
+    log_line('Getting Service...');
+    cmd_service = await server.getPrimaryService(cmd_ServiceUUID);
+
+	RemoteCharacteristicCommand = await cmd_service.getCharacteristic(cmd_CmdCharUUID);
+	log_line("RemoteCharacteristicCommand");
+	//DisplayCharInfo(RemoteCharacteristicCommand);
+
+
+	RemoteCharacteristicStatus = await cmd_service.getCharacteristic(cmd_CmdCharUUID2);
+	//DisplayCharInfo(RemoteCharacteristicStatus);
+	log_line("RemoteCharacteristicStatus");
+	log_line("Notify status:");
+	log_line( RemoteCharacteristicStatus.properties.notify);
+	await RemoteCharacteristicStatus.startNotifications();
+    log_line("Notifications started");
+	
+    await RemoteCharacteristicStatus.addEventListener('characteristicvaluechanged',
+        handleStatusNotification);
+
+	log_line("Connected\n")
+
+  } catch(error) {
+    log_line('Argh! ' + error);
+  }
+}
+
+</script>
+
+</body>
+</html>
